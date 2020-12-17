@@ -168,10 +168,27 @@ func (opt jsOptFn) configureJSContext(opts *js) error {
 
 func APIPrefix(pre string) JSOpt {
 	return jsOptFn(func(js *js) error {
-		js.pre = pre
-		if !strings.HasSuffix(js.pre, ".") {
-			js.pre = js.pre + "."
+		pre = strings.TrimSuffix(pre, ".")
+
+		if pre == ">" {
+			return ErrJetStreamBadPre
 		}
+
+		toks := strings.Split(pre, ".")
+		for i, tok := range toks {
+			if tok == "" || tok == "*" {
+				return ErrJetStreamBadPre
+			}
+
+			if tok == ">" && i < len(toks)-1 {
+				return ErrBadSubject
+			} else if tok == ">" && i == len(toks)-1 {
+				js.pre = pre
+				return nil
+			}
+		}
+
+		js.pre = fmt.Sprintf("%s.", pre)
 		return nil
 	})
 }
@@ -617,7 +634,6 @@ func (js *js) subscribe(subj, queue string, cb MsgHandler, ch chan *Msg, opts []
 
 func (js *js) lookupStreamBySubject(subj string) (string, error) {
 	var slr JSApiStreamNamesResponse
-	// FIXME(dlc) - prefix
 	req := &streamRequest{subj}
 	j, err := json.Marshal(req)
 	if err != nil {
@@ -734,7 +750,6 @@ func (sub *Subscription) Poll() error {
 }
 
 func (js *js) getConsumerInfo(stream, consumer string) (*ConsumerInfo, error) {
-	// FIXME(dlc) - prefix
 	ccInfoSubj := fmt.Sprintf(JSApiConsumerInfoT, stream, consumer)
 	resp, err := js.nc.Request(js.apiSubj(ccInfoSubj), nil, js.wait)
 	if err != nil {
