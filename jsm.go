@@ -14,6 +14,7 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,7 +41,7 @@ type JetStreamManager interface {
 	PurgeStream(name string) error
 
 	// StreamsInfo can be used to retrieve a list of StreamInfo objects.
-	StreamsInfo() <-chan *StreamInfo
+	StreamsInfo(ctx context.Context) <-chan *StreamInfo
 
 	// GetMsg retrieves a raw stream message stored in JetStream by sequence number.
 	GetMsg(name string, seq uint64) (*RawStreamMsg, error)
@@ -58,7 +59,7 @@ type JetStreamManager interface {
 	ConsumerInfo(stream, name string) (*ConsumerInfo, error)
 
 	// ConsumersInfo is used to retrieve a list of ConsumerInfo objects.
-	ConsumersInfo(stream string) <-chan *ConsumerInfo
+	ConsumersInfo(ctx context.Context, stream string) <-chan *ConsumerInfo
 
 	// AccountInfo retrieves info about the JetStream usage from an account.
 	AccountInfo() (*AccountInfo, error)
@@ -261,17 +262,20 @@ type consumerLister struct {
 }
 
 // ConsumersInfo returns a receive only channel to iterate on the consumers info.
-func (js *js) ConsumersInfo(stream string) <-chan *ConsumerInfo {
+func (js *js) ConsumersInfo(ctx context.Context, stream string) <-chan *ConsumerInfo {
 	ach := make(chan *ConsumerInfo)
 	cl := &consumerLister{stream: stream, js: js}
 	go func() {
+		defer close(ach)
 		for cl.Next() {
 			for _, info := range cl.Page() {
-				ach <- info
+				select {
+				case ach <- info:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
-
-		close(ach)
 	}()
 
 	return ach
@@ -624,17 +628,20 @@ type streamLister struct {
 }
 
 // StreamsInfo returns a receive only channel to iterate on the streams.
-func (js *js) StreamsInfo() <-chan *StreamInfo {
+func (js *js) StreamsInfo(ctx context.Context) <-chan *StreamInfo {
 	ach := make(chan *StreamInfo)
 	sl := &streamLister{js: js}
 	go func() {
+		defer close(ach)
 		for sl.Next() {
 			for _, info := range sl.Page() {
-				ach <- info
+				select {
+				case ach <- info:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
-
-		close(ach)
 	}()
 
 	return ach

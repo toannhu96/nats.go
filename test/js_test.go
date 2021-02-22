@@ -249,7 +249,9 @@ func TestJetStreamSubscribe(t *testing.T) {
 	expectConsumers := func(t *testing.T, expected int) {
 		t.Helper()
 		var count int
-		for range js.ConsumersInfo("TEST") {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for range js.ConsumersInfo(ctx, "TEST") {
 			count++
 		}
 		if count != expected {
@@ -749,7 +751,8 @@ func TestJetStreamManagement(t *testing.T) {
 
 	var i int
 	expected := "foo"
-	for stream := range js.StreamsInfo() {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	for stream := range js.StreamsInfo(ctx) {
 		i++
 
 		got := stream.Config.Name
@@ -757,23 +760,28 @@ func TestJetStreamManagement(t *testing.T) {
 			t.Fatalf("Expected stream to be %v, got: %v", expected, got)
 		}
 	}
+	cancel()
 	if i != 1 {
 		t.Errorf("Expected single stream: %v", err)
 	}
 
 	called := false
-	for range js.ConsumersInfo("") {
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	for range js.ConsumersInfo(ctx, "") {
 		called = true
 	}
+	cancel()
 	if called {
 		t.Error("Expected not not receive entries")
 	}
 
-	for ci := range js.ConsumersInfo("foo") {
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	for ci := range js.ConsumersInfo(ctx, "foo") {
 		if ci.Stream != "foo" || ci.Config.Durable != "dlc" {
 			t.Fatalf("ConsumerInfo is not correct %+v", ci)
 		}
 	}
+	cancel()
 
 	// Delete a consumer using our client API.
 	if err := js.DeleteConsumer("", ""); err == nil {
@@ -976,7 +984,7 @@ func testJetStreamManagement_GetMsg(t *testing.T, srvs ...*jsServer) {
 			t.Errorf("Expected %v, got: %v", 4, streamMsg.Sequence)
 		}
 		expectedMap := map[string][]string{
-			"X-Nats-Test-Data": []string{"A:1"},
+			"X-Nats-Test-Data": {"A:1"},
 		}
 		if !reflect.DeepEqual(streamMsg.Header, http.Header(expectedMap)) {
 			t.Errorf("Expected %v, got: %v", expectedMap, streamMsg.Header)
@@ -2043,7 +2051,9 @@ func TestJetStream_Unsubscribe(t *testing.T) {
 		t.Helper()
 
 		var i int
-		for range js.ConsumersInfo("foo") {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for range js.ConsumersInfo(ctx, "foo") {
 			i++
 		}
 		if i != expected {
@@ -2173,7 +2183,9 @@ func TestJetStream_UnsubscribeCloseDrain(t *testing.T) {
 		t.Helper()
 
 		var i int
-		for range jsm.ConsumersInfo("foo") {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for range jsm.ConsumersInfo(ctx, "foo") {
 			i++
 		}
 		if i != expected {
