@@ -804,28 +804,13 @@ func TestJetStreamManagement(t *testing.T) {
 		}
 	})
 
-	t.Run("list consumers", func(t *testing.T) {
-		if cl := js.NewConsumerLister(""); cl.Next() {
-			t.Fatalf("Unexpected next ok")
-		} else if err := cl.Err(); err == nil {
-			if cl.Next() {
-				t.Fatalf("Unexpected next ok")
-			}
-			t.Fatalf("Unexpected nil error")
+	t.Run("list consumer names", func(t *testing.T) {
+		var names []string
+		for name := range js.ConsumerNames(context.Background(), "foo") {
+			names = append(names, name)
 		}
-
-		cl := js.NewConsumerNamesLister("foo")
-		if !cl.Next() {
-			if err := cl.Err(); err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-			t.Fatalf("Unexpected consumer lister next")
-		}
-		if p := cl.Page(); len(p) != 1 || p[0] != "dlc" {
-			t.Fatalf("Consumer name is not correct %+v", p)
-		}
-		if err := cl.Err(); err != nil {
-			t.Errorf("Unexpected error: %v", err)
+		if got, want := len(names), 1; got != want {
+			t.Fatalf("Unexpected names, got=%d, want=%d", got, want)
 		}
 	})
 
@@ -846,6 +831,16 @@ func TestJetStreamManagement(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		} else if si.State.Msgs != 0 {
 			t.Fatalf("StreamInfo.Msgs is not correct")
+		}
+	})
+
+	t.Run("list stream names", func(t *testing.T) {
+		var names []string
+		for name := range js.StreamNames(context.Background()) {
+			names = append(names, name)
+		}
+		if got, want := len(names), 1; got != want {
+			t.Fatalf("Unexpected names, got=%d, want=%d", got, want)
 		}
 	})
 
@@ -878,8 +873,8 @@ func TestJetStreamManagement(t *testing.T) {
 		if info.Limits.MaxConsumers != -1 {
 			t.Errorf("Expected to not have consumer limits, got: %v", info.Limits.MaxConsumers)
 		}
-		if info.API.Total != 13 {
-			t.Errorf("Expected 13 API calls, got: %v", info.API.Total)
+		if info.API.Total != 15 {
+			t.Errorf("Expected 15 API calls, got: %v", info.API.Total)
 		}
 		if info.API.Errors != 1 {
 			t.Errorf("Expected 11 API error, got: %v", info.API.Errors)
@@ -1033,7 +1028,7 @@ func testJetStreamManagement_GetMsg(t *testing.T, srvs ...*jsServer) {
 			t.Errorf("Expected %v, got: %v", 4, streamMsg.Sequence)
 		}
 		expectedMap := map[string][]string{
-			"X-Nats-Test-Data": []string{"A:1"},
+			"X-Nats-Test-Data": {"A:1"},
 		}
 		if !reflect.DeepEqual(streamMsg.Header, http.Header(expectedMap)) {
 			t.Errorf("Expected %v, got: %v", expectedMap, streamMsg.Header)
