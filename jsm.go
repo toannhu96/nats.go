@@ -263,9 +263,19 @@ type consumerLister struct {
 
 // ConsumersInfo returns a receive only channel to iterate on the consumers info.
 func (js *js) ConsumersInfo(ctx context.Context, stream string) <-chan *ConsumerInfo {
+	var cancel context.CancelFunc
+	if ctx == nil {
+		ctx, cancel = context.WithTimeout(context.Background(), js.wait)
+	}
+
 	ach := make(chan *ConsumerInfo)
 	cl := &consumerLister{stream: stream, js: js}
 	go func() {
+		defer func() {
+			if cancel != nil {
+				cancel()
+			}
+		}()
 		defer close(ach)
 		for cl.Next() {
 			for _, info := range cl.Page() {
@@ -629,9 +639,19 @@ type streamLister struct {
 
 // StreamsInfo returns a receive only channel to iterate on the streams.
 func (js *js) StreamsInfo(ctx context.Context) <-chan *StreamInfo {
+	var cancel context.CancelFunc
+	if ctx == nil {
+		ctx, cancel = context.WithTimeout(context.Background(), js.wait)
+	}
+
 	ach := make(chan *StreamInfo)
 	sl := &streamLister{js: js}
 	go func() {
+		defer func() {
+			if cancel != nil {
+				cancel()
+			}
+		}()
 		defer close(ach)
 		for sl.Next() {
 			for _, info := range sl.Page() {
