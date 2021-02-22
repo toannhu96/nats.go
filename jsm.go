@@ -83,6 +83,9 @@ type StreamConfig struct {
 	Template     string          `json:"template_owner,omitempty"`
 	Duplicates   time.Duration   `json:"duplicate_window,omitempty"`
 	Placement    *Placement      `json:"placement,omitempty"`
+	Mirror       string          `json:"mirror,omitempty"`
+	Sources      []string        `json:"sources,omitempty"`
+	Syncs        []string        `json:"syncs,omitempty"`
 }
 
 // Placement is used to guide placement of streams in clustered JetStream.
