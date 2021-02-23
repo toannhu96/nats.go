@@ -806,7 +806,9 @@ func TestJetStreamManagement(t *testing.T) {
 
 	t.Run("list consumer names", func(t *testing.T) {
 		var names []string
-		for name := range js.ConsumerNames(context.Background(), "foo") {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for name := range js.ConsumerNames(ctx, "foo") {
 			names = append(names, name)
 		}
 		if got, want := len(names), 1; got != want {
@@ -836,7 +838,9 @@ func TestJetStreamManagement(t *testing.T) {
 
 	t.Run("list stream names", func(t *testing.T) {
 		var names []string
-		for name := range js.StreamNames(context.Background()) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for name := range js.StreamNames(ctx) {
 			names = append(names, name)
 		}
 		if got, want := len(names), 1; got != want {
