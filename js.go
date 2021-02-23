@@ -701,11 +701,51 @@ func Durable(name string) SubOpt {
 // Pull defines the batch size of messages that will be received
 // when using pull based JetStream consumers.
 func Pull(batchSize int) SubOpt {
-	return subOptFn(func(opts *subOpts) error {
-		if batchSize == 0 {
-			return errors.New("nats: batch size of 0 not valid")
-		}
-		opts.pull = batchSize
+	return BatchSize(batchSize)
+}
+
+// BatchSize defines the batch size of messages that will be received
+// when pulling from a consumer.
+type BatchSize int
+
+func (batchSize BatchSize) configureSubscribe(opts *subOpts) error {
+	if err := validateBatchSize(batchSize); err != nil {
+		return err
+	}
+
+	opts.pull = int(batchSize)
+	return nil
+}
+
+func (batchSize BatchSize) configurePull(opts *pullOpts) error {
+	if err := validateBatchSize(batchSize); err != nil {
+		return err
+	}
+
+	opts.batchSize = int(batchSize)
+	return nil
+}
+
+func validateBatchSize(batchSize BatchSize) error {
+	if batchSize == 0 {
+		return errors.New("nats: batch size of 0 not valid")
+	}
+
+	return nil
+}
+
+// PullNoWait defines whether to disable waiting when making a pull request.
+func PullNoWait() PullOpt {
+	return pullOptFn(func(opts *pullOpts) error {
+		opts.noWait = true
+		return nil
+	})
+}
+
+// PullExpiresIn defines the deadline for which a pull request should expire.
+func PullExpiresIn(duration time.Duration) PullOpt {
+	return pullOptFn(func(opts *pullOpts) error {
+		opts.expires = duration
 		return nil
 	})
 }
@@ -819,20 +859,59 @@ func (sub *Subscription) ConsumerInfo() (*ConsumerInfo, error) {
 	return js.getConsumerInfo(stream, consumer)
 }
 
-func (sub *Subscription) Poll() error {
+type pullOpts struct {
+	batchSize int
+	expires   time.Duration
+	noWait    bool
+}
+
+type PullOpt interface {
+	configurePull(opts *pullOpts) error
+}
+
+// pullOptFn is a function option used to configure pull consumers.
+type pullOptFn func(opts *pullOpts) error
+
+func (opt pullOptFn) configurePull(opts *pullOpts) error {
+	return opt(opts)
+}
+
+func (sub *Subscription) Poll(opts ...PullOpt) error {
+	var o pullOpts
+	for _, opt := range opts {
+		if err := opt.configurePull(&o); err != nil {
+			return err
+		}
+	}
+
 	sub.mu.Lock()
 	if sub.jsi == nil || sub.jsi.deliver != _EMPTY_ || sub.jsi.pull == 0 {
 		sub.mu.Unlock()
 		return ErrTypeSubscription
 	}
-	batch := sub.jsi.pull
+
+	var batch int
+	if o.batchSize > 0 {
+		batch = o.batchSize
+	} else {
+		batch = sub.jsi.pull
+	}
+
 	nc, reply := sub.conn, sub.Subject
 	stream, consumer := sub.jsi.stream, sub.jsi.consumer
 	js := sub.jsi.js
 	sub.mu.Unlock()
 
-	req, _ := json.Marshal(&nextRequest{Batch: batch})
+	nr := &nextRequest{Batch: batch}
+	if o.expires > 0 {
+		expire := time.Now().Add(o.expires)
+		nr.Expires = &expire
+	}
+	nr.NoWait = o.noWait
+
+	req, _ := json.Marshal(nr)
 	reqNext := js.apiSubj(fmt.Sprintf(apiRequestNextT, stream, consumer))
+	// fmt.Println("--->", reqNext, reply)
 	return nc.PublishRequest(reqNext, reply, req)
 }
 
