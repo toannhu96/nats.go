@@ -76,9 +76,6 @@ const (
 	// apiStreamListT is the endpoint that will return all detailed stream information
 	apiStreamList = "STREAM.LIST"
 
-	// apiStreamNamesT is used to return a list with all stream names.
-	apiStreamNamesT = "STREAM.NAMES"
-
 	// apiMsgGetT is the endpoint to get a message.
 	apiMsgGetT = "STREAM.MSG.GET.%s"
 

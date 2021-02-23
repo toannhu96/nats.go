@@ -788,13 +788,6 @@ type streamNamesLister struct {
 	pageInfo *apiPaged
 }
 
-// streamNamesListResponse is the response for a Streams Names List request.
-type streamNamesListResponse struct {
-	apiResponse
-	apiPaged
-	Streams []string `json:"streams"`
-}
-
 // Next fetches the next ConsumerInfo page.
 func (l *streamNamesLister) Next() bool {
 	if l.err != nil {
@@ -804,13 +797,12 @@ func (l *streamNamesLister) Next() bool {
 		return false
 	}
 
-	subj := l.js.apiSubj(fmt.Sprintf(apiStreamNamesT))
-	r, err := l.js.nc.Request(subj, nil, l.js.wait)
+	r, err := l.js.nc.Request(l.js.apiSubj(apiStreams), nil, l.js.wait)
 	if err != nil {
 		l.err = err
 		return false
 	}
-	var resp streamNamesListResponse
+	var resp streamNamesResponse
 	if err := json.Unmarshal(r.Data, &resp); err != nil {
 		l.err = err
 		return false
